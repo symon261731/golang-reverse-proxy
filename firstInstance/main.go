@@ -2,13 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"main/package/types"
 	"main/package/utils"
 	"net/http"
-	"os"
 	"strconv"
 )
 
@@ -23,13 +21,13 @@ func main() {
 			http.Error(writer, "invalid get request", http.StatusNotFound)
 			return
 		}
-		jsonData, err := os.ReadFile(filePath)
+		mockJsonData, err := utils.GetJsonFile()
 
 		if err != nil {
 			log.Println("Произошла ошибка при чтении json")
 		}
 
-		log.Println(string(jsonData))
+		log.Println(mockJsonData)
 
 	})
 
@@ -49,20 +47,11 @@ func main() {
 			return
 		}
 
-		mockJsonData, err := os.ReadFile(filePath)
-		if err != nil {
-			log.Println("Произошла ошибка при чтении json")
-			log.Println(err)
+		users, readFileError := utils.GetJsonFile()
 
-			return
-		}
-
-		var users types.UserListMap
-		marshalError := json.Unmarshal(mockJsonData, &users)
-
-		if marshalError != nil {
+		if readFileError != nil {
 			log.Println("Произошла ошибка при парсинге json файла")
-			log.Println(err)
+			log.Println(readFileError)
 
 			return
 		}
@@ -97,21 +86,10 @@ func main() {
 		users[bodyData.Source_id] = sourceUser
 		users[bodyData.Target_id] = targetUser
 
-		byteDbData, errByteDbData := json.Marshal(users)
+		errorSetData := utils.SetDataInJson(users)
 
-		if errByteDbData != nil {
-			log.Println("Произошла ошибка при шифровании json")
-			log.Println(err)
-
-			return
-		}
-
-		errorWriteFile := os.WriteFile(filePath, byteDbData, 0644)
-
-		if errorWriteFile != nil {
-			log.Println("Произошла ошибка при записи в файл")
-			log.Println(errorWriteFile)
-
+		if errorSetData != nil {
+			log.Println(errorSetData)
 			return
 		}
 
@@ -136,21 +114,10 @@ func main() {
 			return
 		}
 
-		jsonData, err := os.ReadFile(filePath)
-		if err != nil {
-			log.Println("Произошла ошибка при чтении json")
-			log.Println(err)
+		var users, getJsonFileError = utils.GetJsonFile()
 
-			return
-		}
-
-		var users types.UserListMap
-		errParseJson := json.Unmarshal(jsonData, &users)
-
-		if errParseJson != nil {
-			log.Println("Произошла ошибка при парсинге json")
-			log.Println(errParseJson)
-
+		if getJsonFileError != nil {
+			log.Println(getJsonFileError)
 			return
 		}
 
@@ -159,19 +126,10 @@ func main() {
 
 		users[strconv.Itoa(newId)] = newUser
 
-		decodeUserMap, errMarshalJson := json.Marshal(users)
-		if errMarshalJson != nil {
-			log.Println("Произошла ошибка при шифровании json")
-			log.Println(err)
+		errorSetData := utils.SetDataInJson(users)
 
-			return
-		}
-
-		errWriteFile := os.WriteFile(filePath, decodeUserMap, 0644)
-		if errWriteFile != nil {
-			log.Println("Произошла ошибка при записи новых данных")
-			log.Println(errWriteFile)
-
+		if errorSetData != nil {
+			log.Println(errorSetData)
 			return
 		}
 
@@ -187,26 +145,29 @@ func main() {
 
 		id := vars["id"]
 
-		file, err := os.ReadFile(filePath)
-
-		if err != nil {
-			log.Println("Произошла ошибка при чтении файла")
-			log.Println(err)
-			return
-		}
-
-		var fileJsonData types.UserListMap
-		unmarshallErr := json.Unmarshal(file, &fileJsonData)
+		var fileJsonData, unmarshallErr = utils.GetJsonFile()
 
 		if unmarshallErr != nil {
 			log.Println("Произошла ошибка при парсинге файла")
+			log.Println(unmarshallErr)
 			return
 		}
 
 		if entry, ok := fileJsonData[id]; ok {
 			log.Println(entry.Friends)
+
+			byteJson, errMarshal := json.Marshal(entry.Friends)
+
+			if errMarshal != nil {
+				log.Println(errMarshal)
+				return
+			}
+
+			writer.WriteHeader(http.StatusOK)
+			writer.Write(byteJson)
 		} else {
 			log.Println("Пользователя с таким id не существует")
+			writer.WriteHeader(http.StatusNotFound)
 			return
 		}
 
@@ -227,25 +188,17 @@ func main() {
 			return
 		}
 
-		file, err := os.ReadFile(filePath)
-
-		if err != nil {
-			log.Println("Произошла ошибка при чтении файла")
-			log.Println(err)
-			return
-		}
-
-		var fileJsonData types.UserListMap
-		unmarshallErr := json.Unmarshal(file, &fileJsonData)
+		var fileJsonData, unmarshallErr = utils.GetJsonFile()
 
 		if unmarshallErr != nil {
 			log.Println("Произошла ошибка при парсинге файла")
+			log.Println(unmarshallErr)
 			return
 		}
 
 		resultedFileJsonData := fileJsonData
 
-		//Очистка других пользователей от удаляемого пользователя
+		//! Очистка других пользователей от удаляемого пользователя
 		if userForDelete, ok := resultedFileJsonData[userForDeleteId]; ok {
 
 			for _, friend := range userForDelete.Friends {
@@ -265,22 +218,12 @@ func main() {
 
 		delete(resultedFileJsonData, userForDeleteId)
 
-		fmt.Println(resultedFileJsonData)
+		errSetData := utils.SetDataInJson(resultedFileJsonData)
 
-		decodeUserMap, errMarshalJson := json.Marshal(resultedFileJsonData)
-		if errMarshalJson != nil {
-			log.Println("Произошла ошибка при шифровании json")
-			log.Println(err)
-
+		if errSetData != nil {
+			log.Println(errSetData)
 			return
-		}
 
-		errWriteFile := os.WriteFile(filePath, decodeUserMap, 0644)
-		if errWriteFile != nil {
-			log.Println("Произошла ошибка при записи новых данных")
-			log.Println(errWriteFile)
-
-			return
 		}
 
 	})
@@ -313,19 +256,10 @@ func main() {
 			return
 		}
 
-		mockJsonData, err := os.ReadFile(filePath)
-		if err != nil {
-			log.Println("Произошла ошибка при чтении json")
-			log.Println(err)
-
-			return
-		}
-
-		var users types.UserListMap
-		marshalError := json.Unmarshal(mockJsonData, &users)
-		if marshalError != nil {
+		var users, getJsonError = utils.GetJsonFile()
+		if getJsonError != nil {
 			log.Println("Произошла ошибка при парсинге json")
-			log.Println(marshalError)
+			log.Println(getJsonError)
 
 			return
 		}
@@ -339,22 +273,12 @@ func main() {
 		neededUser.Age = newAge
 		users[userId] = neededUser
 
-		decodeUserMap, marshalError := json.Marshal(users)
+		errorSetData := utils.SetDataInJson(users)
 
-		if marshalError != nil {
-			log.Println("Произошла ошибки при marshal json")
-			log.Println(marshalError)
-
+		if errorSetData != nil {
+			log.Println(errorSetData)
 			return
-		}
 
-		errorWriteFile := os.WriteFile(filePath, decodeUserMap, 0644)
-
-		if errorWriteFile != nil {
-			log.Println("Произошла ошибка при записи в файл")
-			log.Println(errorWriteFile)
-
-			return
 		}
 
 	})
