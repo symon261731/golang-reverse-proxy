@@ -28,6 +28,16 @@ func main() {
 
 		log.Println(mockJsonData)
 
+		marshal, marshalError := json.Marshal(mockJsonData)
+		if marshalError != nil {
+			log.Println(marshalError)
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		writer.WriteHeader(http.StatusOK)
+		writer.Write(marshal)
+
 	})
 
 	r.HandleFunc("/make_friends", func(writer http.ResponseWriter, request *http.Request) {
@@ -132,6 +142,8 @@ func main() {
 			return
 		}
 
+		writer.WriteHeader(http.StatusCreated)
+		writer.Write([]byte(strconv.Itoa(newId)))
 	})
 
 	r.HandleFunc("/friends/{id}", func(writer http.ResponseWriter, request *http.Request) {
@@ -149,6 +161,7 @@ func main() {
 		if unmarshallErr != nil {
 			log.Println("Произошла ошибка при парсинге файла")
 			log.Println(unmarshallErr)
+			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
@@ -196,7 +209,7 @@ func main() {
 		}
 
 		resultedFileJsonData := fileJsonData
-
+		var nameOfDeletedUser string
 		//! Очистка других пользователей от удаляемого пользователя
 		if userForDelete, ok := resultedFileJsonData[userForDeleteId]; ok {
 
@@ -210,27 +223,27 @@ func main() {
 				copiedFriend.Friends = filteredFriendsListOfFriend
 				resultedFileJsonData[friendId] = copiedFriend
 			}
+			nameOfDeletedUser = userForDelete.Name
 		} else {
 			log.Println("Пользователя с таким id не существует")
 			return
 		}
 
 		delete(resultedFileJsonData, userForDeleteId)
-
 		errSetData := utils.SetDataInJson(resultedFileJsonData)
 
 		if errSetData != nil {
 			log.Println(errSetData)
 			return
-
 		}
 
+		writer.WriteHeader(http.StatusOK)
+		writer.Write([]byte(nameOfDeletedUser))
 	})
 
 	r.HandleFunc("/{user_id}", func(writer http.ResponseWriter, request *http.Request) {
-
 		if request.Method != "PUT" {
-			http.Error(writer, "invalid request", http.StatusNotFound)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
 			return
 		}
 
@@ -277,9 +290,10 @@ func main() {
 		if errorSetData != nil {
 			log.Println(errorSetData)
 			return
-
 		}
 
+		writer.WriteHeader(http.StatusOK)
+		writer.Write([]byte("возраст пользователя успешно обновлен"))
 	})
 
 	log.Printf("Веб-сервер запущен на http://127.0.0.1%s", PORT)
